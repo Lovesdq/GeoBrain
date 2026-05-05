@@ -96,7 +96,8 @@ def save_volume_orthoslices(
     items = list(volumes.items())[:max_items]
     if not items:
         return
-    fig, axes = plt.subplots(len(items), 3, figsize=(7.1, 1.85 * len(items)), squeeze=False)
+    fig, axes = plt.subplots(len(items), 3, figsize=(8.6, 1.95 * len(items)), squeeze=False)
+    colorbar_rows = []
     for row, (name, volume) in enumerate(items):
         arr = _to_numpy(volume)
         while arr.ndim > 3:
@@ -122,9 +123,15 @@ def save_volume_orthoslices(
             title = f"{_display_name(name)} - {label}" if col == 0 or arr.ndim <= 2 else label
             _format_image_axis(ax, title)
         if last_im is not None:
-            cbar = fig.colorbar(last_im, ax=axes[row, :], fraction=0.018, pad=0.01)
-            _label_colorbar(cbar, name)
-    fig.subplots_adjust(left=0.07, right=0.93, top=0.98, bottom=0.04, wspace=0.22, hspace=0.45)
+            colorbar_rows.append((row, last_im, name))
+    fig.subplots_adjust(left=0.06, right=0.84, top=0.98, bottom=0.04, wspace=0.26, hspace=0.48)
+    for row, image, name in colorbar_rows:
+        row_boxes = [ax.get_position() for ax in axes[row, :]]
+        y0 = min(box.y0 for box in row_boxes)
+        y1 = max(box.y1 for box in row_boxes)
+        cax = fig.add_axes([0.875, y0, 0.012, y1 - y0])
+        cbar = fig.colorbar(image, cax=cax)
+        _label_colorbar(cbar, name)
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path, dpi=dpi)
@@ -365,9 +372,13 @@ def _add_panel_letter(ax, idx: int) -> None:
 
 def _label_colorbar(cbar, name: str) -> None:
     label = _unit_label(name)
+    cbar.formatter.set_useOffset(False)
+    cbar.formatter.set_scientific(False)
+    cbar.update_ticks()
     if label:
         cbar.ax.set_ylabel(label, rotation=90, labelpad=3)
-    cbar.ax.tick_params(length=2.0, width=0.45)
+        cbar.ax.yaxis.label.set_size(6)
+    cbar.ax.tick_params(length=2.0, width=0.45, labelsize=5)
 
 
 def _display_name(name: str) -> str:

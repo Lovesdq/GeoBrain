@@ -2,6 +2,9 @@
 
 ## 2026-05-05
 
+- Fixed orthoslice publication figures where row colorbars and tick-offset numbers could overlap the third slice panel; colorbars now use dedicated right-side axes with reserved margins and non-offset tick formatting.
+- Regenerated the affected `grid_peff/figures/nature_*` plates under `research_pipelines/stress_conditioned_softdata_outputs`.
+
 - Enhanced publication visualization for the stress-conditioned soft-data pipeline with unit-aware colorbars, display-name normalization, panel lettering, and an integrated Nature-style summary plate `nature_integrated_softdata_summary.png`.
 - Materialized the real `grid.csv` run output inside the repository at `research_pipelines/stress_conditioned_softdata_outputs/grid_peff`, including exports, QC, ablation metrics, logs, geomechanics metadata, and all figures.
 
