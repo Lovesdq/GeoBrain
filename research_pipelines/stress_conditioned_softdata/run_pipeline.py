@@ -15,27 +15,27 @@ import torch
 
 try:
     from .ablation import run_ablation
-    from .data_schema import canonicalize_dataframe, load_config, load_table, resolve_schema, write_metadata
+    from .data_schema import canonicalize_dataframe, load_config, load_table, resolve_schema, save_json, write_metadata
     from .export_io import export_all, save_npz
     from .grid_builder import build_regular_grid
     from .horizon_softdata import generate_horizon_softdata
     from .qc import run_qc
     from .rock_physics_stress import generate_elastic_properties
     from .seismic_softdata import generate_seismic_softdata
-    from .stress_features import compute_stress_brittleness_proxies, compute_stress_features
+    from .stress_features import compute_geomechanics_features, compute_stress_brittleness_proxies, compute_stress_features
     from .uncertainty import run_uncertainty
     from .visualization import save_crossplot, save_difference_panel, save_slice_panel, save_volume_orthoslices
 except ImportError:  # Allows: python research_pipelines/.../run_pipeline.py
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from research_pipelines.stress_conditioned_softdata.ablation import run_ablation
-    from research_pipelines.stress_conditioned_softdata.data_schema import canonicalize_dataframe, load_config, load_table, resolve_schema, write_metadata
+    from research_pipelines.stress_conditioned_softdata.data_schema import canonicalize_dataframe, load_config, load_table, resolve_schema, save_json, write_metadata
     from research_pipelines.stress_conditioned_softdata.export_io import export_all, save_npz
     from research_pipelines.stress_conditioned_softdata.grid_builder import build_regular_grid
     from research_pipelines.stress_conditioned_softdata.horizon_softdata import generate_horizon_softdata
     from research_pipelines.stress_conditioned_softdata.qc import run_qc
     from research_pipelines.stress_conditioned_softdata.rock_physics_stress import generate_elastic_properties
     from research_pipelines.stress_conditioned_softdata.seismic_softdata import generate_seismic_softdata
-    from research_pipelines.stress_conditioned_softdata.stress_features import compute_stress_brittleness_proxies, compute_stress_features
+    from research_pipelines.stress_conditioned_softdata.stress_features import compute_geomechanics_features, compute_stress_brittleness_proxies, compute_stress_features
     from research_pipelines.stress_conditioned_softdata.uncertainty import run_uncertainty
     from research_pipelines.stress_conditioned_softdata.visualization import save_crossplot, save_difference_panel, save_slice_panel, save_volume_orthoslices
 
@@ -72,8 +72,18 @@ def main(argv: list[str] | None = None) -> int:
     run_qc(grid, config, output_dir / "qc")
 
     stress_features, stress_warnings = compute_stress_features(grid.properties, config)
+    geomech_features, geomech_warnings, geomech_metadata = compute_geomechanics_features(grid, grid.properties, config)
+    stress_features.update(geomech_features)
     stress_extra = compute_stress_brittleness_proxies(grid.properties, stress_features, config)
     stress_features.update(stress_extra)
+    save_json(
+        {
+            "geomechanics": geomech_metadata,
+            "warnings": geomech_warnings,
+            "interpretation": "Pp/Sv are column-priority values with deterministic gradient proxies when columns are absent or incomplete.",
+        },
+        output_dir / "geomechanics_metadata.json",
+    )
 
     elastic_no = generate_elastic_properties(grid.properties, config, stress_features=stress_features, mode="no_stress")
     elastic_stress = generate_elastic_properties(
@@ -82,8 +92,15 @@ def main(argv: list[str] | None = None) -> int:
         stress_features=stress_features,
         mode=config.get("rock_physics", {}).get("mode", "strong"),
     )
+    elastic_physical = generate_elastic_properties(
+        grid.properties,
+        config,
+        stress_features=stress_features,
+        mode="sv_minus_pore_pressure",
+    )
     seismic_no = generate_seismic_softdata(elastic_no.tensors, config)
     seismic_stress = generate_seismic_softdata(elastic_stress.tensors, config)
+    seismic_physical = generate_seismic_softdata(elastic_physical.tensors, config)
 
     horizon_input = {**grid.properties, **_torch_to_numpy_dict(elastic_stress.tensors)}
     horizon = generate_horizon_softdata(horizon_input, config)
@@ -93,7 +110,10 @@ def main(argv: list[str] | None = None) -> int:
         "stress_features": stress_features,
         "elastic_no_stress": elastic_no.tensors,
         "elastic_stress": elastic_stress.tensors,
+        "elastic_physical_pressure": elastic_physical.tensors,
+        "seismic_no_stress": seismic_no.tensors,
         "seismic_stress": seismic_stress.tensors,
+        "seismic_physical_pressure": seismic_physical.tensors,
         "horizon_softdata": horizon.tensors,
     }
     export_all(grid, groups, config, output_dir / "exports")
@@ -103,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
         for key, stats in uncertainty.items():
             save_npz(output_dir / "exports" / f"uncertainty_{key}.npz", stats)
 
-    save_figures(grid, stress_features, elastic_no.tensors, elastic_stress.tensors, seismic_stress.tensors, horizon.tensors, config, output_dir)
+    save_figures(grid, stress_features, elastic_no.tensors, elastic_stress.tensors, elastic_physical.tensors, seismic_stress.tensors, seismic_physical.tensors, horizon.tensors, config, output_dir)
 
     if bool(config.get("ablation", {}).get("enabled", True)):
         run_ablation(
@@ -114,14 +134,16 @@ def main(argv: list[str] | None = None) -> int:
             precomputed={
                 "elastic_no_stress": elastic_no,
                 "elastic_stress": elastic_stress,
+                "elastic_physical_pressure": elastic_physical,
                 "seismic_no_stress": seismic_no,
                 "seismic_stress": seismic_stress,
+                "seismic_physical_pressure": seismic_physical,
                 "horizon": horizon,
             },
         )
 
     elapsed = time.perf_counter() - start
-    LOGGER.info("Pipeline complete in %.2f s. Stress warnings=%s", elapsed, stress_warnings)
+    LOGGER.info("Pipeline complete in %.2f s. Stress warnings=%s Geomechanics warnings=%s", elapsed, stress_warnings, geomech_warnings)
     print(f"Pipeline complete: {output_dir}")
     return 0
 
@@ -183,7 +205,9 @@ def save_figures(
     stress_features: Mapping[str, Any],
     elastic_no: Mapping[str, Any],
     elastic_stress: Mapping[str, Any],
+    elastic_physical: Mapping[str, Any],
     seismic: Mapping[str, Any],
+    seismic_physical: Mapping[str, Any],
     horizon: Mapping[str, Any],
     config: Mapping[str, Any],
     output_dir: Path,
@@ -196,10 +220,13 @@ def save_figures(
     save_slice_panel(horizon, fig_dir / "horizon_softdata_slices.png", dpi=dpi)
     save_difference_panel(elastic_no, elastic_stress, ["Vp", "Vs", "density", "AI", "VpVs"], fig_dir / "stress_aware_minus_baseline.png", dpi=dpi)
     context = {k: grid.properties[k] for k in ["facies", "porosity", "oil_saturation", "permeability", "gamma", "stress", "SH1", "SH2"] if k in grid.properties}
-    context.update({k: stress_features[k] for k in ["mean_stress_proxy", "differential_stress", "stress_anisotropy_index"] if k in stress_features})
+    context.update({k: stress_features[k] for k in ["mean_stress_proxy", "differential_stress", "stress_anisotropy_index", "pore_pressure_MPa", "vertical_stress_Sv_MPa", "effective_pressure_physical_MPa"] if k in stress_features})
     save_volume_orthoslices(context, fig_dir / "nature_harddata_stress_context.png", dpi=dpi, max_items=6)
     save_volume_orthoslices({k: elastic_stress[k] for k in ["Vp", "Vs", "density", "VpVs", "AI", "SI"] if k in elastic_stress}, fig_dir / "nature_elastic_orthoslices.png", dpi=dpi, max_items=6)
+    save_volume_orthoslices({k: stress_features[k] for k in ["pore_pressure_MPa", "vertical_stress_Sv_MPa", "effective_pressure_physical_MPa", "overpressure_ratio", "effective_pressure_ratio"] if k in stress_features}, fig_dir / "nature_geomechanics_pressure_context.png", dpi=dpi, max_items=5)
+    save_difference_panel(elastic_stress, elastic_physical, ["Vp", "Vs", "density", "AI", "VpVs"], fig_dir / "physical_peff_minus_stress_proxy.png", dpi=dpi)
     save_volume_orthoslices({**{k: seismic[k] for k in ["poststack_seismic", "AVO_intercept", "AVO_gradient"] if k in seismic}, **{k: horizon[k] for k in ["horizon_probability", "signed_distance_field"] if k in horizon}}, fig_dir / "nature_seismic_horizon_orthoslices.png", dpi=dpi, max_items=5)
+    save_volume_orthoslices({**{k: seismic_physical[k] for k in ["poststack_seismic", "AVO_intercept", "AVO_gradient"] if k in seismic_physical}, **{k: elastic_physical[k] for k in ["effective_pressure_proxy_MPa", "AI"] if k in elastic_physical}}, fig_dir / "nature_physical_peff_softdata.png", dpi=dpi, max_items=5)
     if "facies" in grid.properties:
         save_crossplot(grid.properties["porosity"], elastic_stress["AI"], grid.properties["facies"], fig_dir / "porosity_ai_crossplot.png", "porosity", "AI", dpi=dpi)
         save_crossplot(grid.properties["oil_saturation"], seismic["AVO_gradient"], grid.properties["facies"][:, :, :-1], fig_dir / "oil_saturation_avo_gradient_crossplot.png", "oil saturation", "AVO gradient", dpi=dpi)

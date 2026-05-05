@@ -45,6 +45,13 @@
 | `sh2` | 垂向最小地应力/最小主应力代理 | `SH2` | MPa |
 | `OilPhase` | 储层分类标签 | `facies` | `0-3` 类别码 |
 
+扩展实验还支持以下可选列；当前 `grid.csv` 没有这些列，因此默认使用深度梯度代理：
+
+| 可选列名 | 物理含义 | pipeline 标准名 | 缺列时处理 |
+|---|---|---|---|
+| `pore_pressure` / `Pp` | 孔隙压力 | `pore_pressure` | 用 hydrostatic gradient 估计 |
+| `vertical_stress` / `Sv` | 垂向总应力 | `vertical_stress` | 用 overburden gradient 估计 |
+
 默认 facies 解释：
 
 - `0`: `mudstone`，泥岩
@@ -87,26 +94,42 @@ cd /home/likunxi/data/GeoBrain
 
 - `metadata.json`：字段映射、facies 编码、单位和输入列记录。
 - `qc/qc_report.json`：网格形状、缺失点、重复点、异常值和范围警告。
+- `geomechanics_metadata.json`：`Pp/Sv` 来源、`Peff=Sv-Pp` 裁剪范围、代理估计 warning。
 - `qc/figures/`：各硬数据属性的直方图和切片 QC 图。
 - `exports/grid_properties.*`：原始硬数据规则网格。
 - `exports/stress_features.*`：应力派生代理量。
 - `exports/elastic_no_stress.*`：无应力 baseline 岩石物理软数据。
 - `exports/elastic_stress.*`：stress-conditioned 岩石物理软数据。
+- `exports/elastic_physical_pressure.*`：`Sv-Pp` physical effective-pressure 岩石物理扩展实验。
+- `exports/seismic_no_stress.*`：无应力 baseline 地震软数据。
 - `exports/seismic_stress.*`：stress-conditioned 反射系数、叠前/叠后合成地震和 AVO 属性。
+- `exports/seismic_physical_pressure.*`：`Sv-Pp` physical effective-pressure 地震扩展实验。
 - `exports/horizon_softdata.*`：储层 mask、顶/底界面、horizon probability 和 SDF。
 - `figures/`：论文图件，包括普通切片图、差异图、crossplot 和 Nature 风格正交三切片图版。
-- `ablation/metrics.csv`：Exp-0 到 Exp-6 的统计、相关系数、separability、差异和运行时间指标。
+- `ablation/metrics.csv`：Exp-0 到 Exp-8 的统计、相关系数、separability、差异和运行时间指标。
 
 ## 5. 科研方法路线
 
 1. **点表到规则网格**：读取 CSV/Parquet，根据 `x,y,z` 自动推断 `nx,ny,nz,dx,dy,dz`，并检查规则性、缺失节点、重复节点和坐标单调性。
 2. **硬数据 QC**：统计孔隙度、渗透率、伽马、含油饱和度、脆性指数、`SH/SH1/SH2` 的 min/max/mean/std/percentile、NaN/Inf 和物理范围警告。
 3. **应力代理特征**：由 `sh1/sh2` 生成 `mean_stress_proxy`、`differential_stress`、`stress_ratio`、`stress_anisotropy_index`；由 `SH` 生成 `stress_MPa` 和归一化版本。
-4. **岩石物理软数据**：复用 GeoBrain `SoftSand + Gassmann + DensityModel + v_from_moduli`。无应力 baseline 使用常数 effective pressure；强物理方案将空间变化的 `mean_stress_proxy` 映射为 effective-pressure proxy。
-5. **弹性与阻抗属性**：输出 `Vp`、`Vs`、`density`、`Vp/Vs`、`AI`、`SI` 和多角度 `EI(angle)`。
-6. **地震软数据**：复用 GeoBrain Shuey AVO、Ricker 子波和卷积矩阵，输出反射系数、叠后合成地震、12/24/36 度叠前地震、AVO intercept/gradient/curvature 和噪声版本。
-7. **层位软约束**：从储层 facies 或属性突变提取顶/底界面，生成 horizon probability volume 和 signed distance field。
-8. **消融实验**：比较硬数据统计、无应力岩石物理、应力感知岩石物理、无应力地震、应力感知地震、噪声/不确定性和 horizon soft constraints。
+4. **孔隙压力与 Sv 扩展**：若存在 `Pp/Sv` 列则直接使用；若不存在则按 `Pp(z)=Pp0+0.00981*z`、`Sv(z)=Sv0+0.023*z` 生成代理体，并计算 `Peff=clip(Sv-Pp)`。
+5. **岩石物理软数据**：复用 GeoBrain `SoftSand + Gassmann + DensityModel + v_from_moduli`。无应力 baseline 使用常数 effective pressure；强物理方案将空间变化的 `mean_stress_proxy` 映射为 effective-pressure proxy；扩展实验使用 `Sv-Pp` 得到的 physical effective-pressure proxy。
+6. **弹性与阻抗属性**：输出 `Vp`、`Vs`、`density`、`Vp/Vs`、`AI`、`SI` 和多角度 `EI(angle)`。
+7. **地震软数据**：复用 GeoBrain Shuey AVO、Ricker 子波和卷积矩阵，输出反射系数、叠后合成地震、12/24/36 度叠前地震、AVO intercept/gradient/curvature 和噪声版本。
+8. **层位软约束**：从储层 facies 或属性突变提取顶/底界面，生成 horizon probability volume 和 signed distance field。
+9. **消融实验**：比较硬数据统计、无应力岩石物理、应力感知岩石物理、`Sv-Pp` effective-pressure 岩石物理/地震、噪声/不确定性和 horizon soft constraints。
+
+`Pp/Sv` 扩展实验的默认配置是列优先、代理兜底：
+
+```text
+若列存在：Pp = pore_pressure, Sv = vertical_stress, Peff = clip(Sv - Pp, 2, 80) MPa
+若列缺失：Pp(z) = Pp0 + 0.00981 * (z - datum)
+          Sv(z) = Sv0 + 0.02300 * (z - datum)
+          Peff(z) = clip(Sv(z) - Pp(z), 2, 80) MPa
+```
+
+当前真实 `grid.csv` 的 `z=485-630 m` 会直接作为深度坐标进入梯度代理。该扩展比 `mean_stress_proxy` 更接近有效压力定义，但在没有实测孔隙压力、垂向总应力密度积分和孔隙压力校正的条件下仍应称为 physical effective-pressure proxy。
 
 ## 6. 实验设计文字版
 
@@ -114,17 +137,11 @@ cd /home/likunxi/data/GeoBrain
 
 在弹性属性基础上，计算 AI、SI、Vp/Vs 和 EI，并用 Shuey 近似生成多角度反射系数，随后与 Ricker 子波卷积获得叠前/叠后合成地震体。储层类别标签用于提取顶/底界面、界面概率和 SDF，作为结构软约束。最终通过 facies-wise 统计、AI/VpVs/AVO gradient separability、硬数据-软数据相关系数、stress-aware 与 baseline 差异图以及运行时间/显存统计评价软数据质量。
 
+孔隙压力与垂向总应力扩展实验使用列优先策略：若输入提供 `pore_pressure/Pp` 与 `vertical_stress/Sv`，则直接计算 `Peff=clip(Sv-Pp)`；若缺列，则按深度梯度生成可复现实验代理体。当前真实 `grid.csv` 缺少实测 `Pp/Sv`，因此该实验代表更接近物理定义的 proxy 对比，而非实测有效压力建模。
+
 ## 7. 方法流程图文字版
 
-输入点表 `grid.csv`  
--> 字段映射与 facies 编码  
--> 规则三维网格恢复与 QC  
--> `SH/sh1/sh2` 应力代理特征  
--> 无应力与应力感知 SoftSand-Gassmann 岩石物理  
--> `Vp/Vs/rho/AI/SI/EI` 弹性软数据  
--> Shuey AVO 反射系数与 Ricker 合成地震  
--> facies/属性突变层位概率与 SDF  
--> 不确定性、消融实验、论文图件和 NPZ/PT/可选 VTK/SEG-Y 导出。
+`grid.csv` 输入点表 -> 字段映射与 facies 编码 -> 规则三维网格恢复与 QC -> `SH/sh1/sh2` 应力代理特征 -> `Pp/Sv` 列优先或深度梯度代理的 `Peff=Sv-Pp` -> 无应力、应力感知与 `Sv-Pp` SoftSand-Gassmann 岩石物理 -> `Vp/Vs/rho/AI/SI/EI` 弹性软数据 -> Shuey AVO 反射系数与 Ricker 合成地震 -> facies/属性突变层位概率与 SDF -> 不确定性、消融实验、论文图件和 NPZ/PT/可选 VTK/SEG-Y 导出。
 
 ## 8. 已验证情况
 
@@ -133,6 +150,8 @@ cd /home/likunxi/data/GeoBrain
 - 单元测试覆盖网格恢复、应力特征、岩石物理、地震软数据和可视化边界条件。
 - synthetic small grid 可以端到端运行。
 - 当前真实 `grid.csv` 可恢复为规则网格候选；上一次运行识别到 `124 x 283 x 30` 网格、`4185` 个缺失节点、无重复节点。
+- 当前真实 `grid.csv` 缺少 `Pp/Sv` 列，已验证会使用深度梯度代理生成 `pore_pressure_MPa`、`vertical_stress_Sv_MPa` 和 `effective_pressure_physical_MPa`，并写入 `geomechanics_metadata.json`。
+- `/tmp/geobrain_softdata_grid_peff` 真实运行已生成 `elastic_physical_pressure`、`seismic_physical_pressure`、Exp-7/Exp-8 指标和 `nature_geomechanics_pressure_context.png`。
 - 原始数据和运行结果中存在缺失节点对应的 NaN，QC 报告会显式记录。
 
 ## 9. 论文表述边界

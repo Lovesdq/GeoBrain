@@ -48,3 +48,18 @@ def test_generate_elastic_properties_positive_outputs():
     assert float(result.tensors["Vp"].min()) > 0.0
     assert float(result.tensors["Vs"].min()) > 0.0
     assert "EI_12" in result.tensors
+
+
+def test_generate_elastic_properties_uses_physical_effective_pressure():
+    shape = (2, 1, 3)
+    props = {
+        "porosity": np.full(shape, 18.0, dtype=np.float32),
+        "oil_saturation": np.full(shape, 55.0, dtype=np.float32),
+        "brittleness_index": np.full(shape, 50.0, dtype=np.float32),
+        "SH1": np.full(shape, 34.0, dtype=np.float32),
+        "SH2": np.full(shape, 27.0, dtype=np.float32),
+        "facies": np.ones(shape, dtype=np.int16),
+    }
+    stress_features = {"effective_pressure_physical_MPa": np.full(shape, 11.0, dtype=np.float32)}
+    result = generate_elastic_properties(props, _config(), stress_features=stress_features, mode="sv_minus_pore_pressure")
+    assert np.allclose(result.tensors["effective_pressure_proxy_MPa"].detach().cpu().numpy(), 11.0)

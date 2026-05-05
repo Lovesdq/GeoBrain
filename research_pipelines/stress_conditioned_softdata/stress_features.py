@@ -66,6 +66,89 @@ def compute_stress_features(
     return features, warnings
 
 
+def compute_geomechanics_features(
+    grid,
+    properties: Mapping[str, np.ndarray],
+    config: Mapping[str, Any],
+) -> tuple[Dict[str, np.ndarray], list[str], Dict[str, Any]]:
+    """Compute pore-pressure, vertical-stress and physical Peff proxies.
+
+    Column values are preferred when configured and present. Missing columns or
+    NaNs are filled from deterministic depth-gradient proxies so the experiment
+    remains reproducible on the current ``grid.csv`` schema.
+    """
+    geomech = config.get("geomechanics", {})
+    units = config.get("schema", {}).get("property_units", {})
+    shape = np.asarray(properties["porosity"]).shape
+    z = np.asarray(grid.z, dtype=np.float32)
+    z_volume = np.broadcast_to(z.reshape(1, 1, -1), shape)
+
+    pp_fallback = _depth_gradient_volume(
+        z_volume,
+        gradient=float(geomech.get("pore_pressure_gradient_mpa_per_m", 0.00981)),
+        intercept=float(geomech.get("pore_pressure_at_datum_mpa", 0.0)),
+        datum=float(geomech.get("reference_datum_m", 0.0)),
+    )
+    sv_fallback = _depth_gradient_volume(
+        z_volume,
+        gradient=float(geomech.get("vertical_stress_gradient_mpa_per_m", 0.023)),
+        intercept=float(geomech.get("vertical_stress_at_datum_mpa", 0.0)),
+        datum=float(geomech.get("reference_datum_m", 0.0)),
+    )
+
+    warnings: list[str] = []
+    pp, pp_source = _column_or_fallback(
+        properties,
+        key="pore_pressure",
+        unit=units.get("pore_pressure", "MPa"),
+        fallback=pp_fallback,
+        source_policy=str(geomech.get("pore_pressure_source", "column_or_hydrostatic")),
+        fallback_label="hydrostatic_gradient",
+    )
+    sv, sv_source = _column_or_fallback(
+        properties,
+        key="vertical_stress",
+        unit=units.get("vertical_stress", "MPa"),
+        fallback=sv_fallback,
+        source_policy=str(geomech.get("vertical_stress_source", "column_or_gradient")),
+        fallback_label="overburden_gradient",
+    )
+    if pp_source != "column":
+        warnings.append(f"pore_pressure unavailable or incomplete; using {pp_source} proxy where needed")
+    if sv_source != "column":
+        warnings.append(f"vertical_stress/Sv unavailable or incomplete; using {sv_source} proxy where needed")
+
+    clip = geomech.get("effective_pressure_clip_mpa", [2.0, 80.0])
+    peff_raw = sv - pp
+    if np.any(np.isfinite(peff_raw) & (peff_raw <= 0.0)):
+        warnings.append("Sv <= pore pressure at some cells; physical effective pressure is clipped")
+    if np.any(np.isfinite(pp) & (pp < 0.0)):
+        warnings.append("pore pressure < 0 at some cells; check datum/gradient or input units")
+    for warning in warnings:
+        LOGGER.warning(warning)
+
+    peff = np.clip(np.nan_to_num(peff_raw, nan=float(clip[0])), float(clip[0]), float(clip[1]))
+    overpressure_ratio = pp / np.maximum(sv, EPS)
+    effective_pressure_ratio = peff / np.maximum(sv, EPS)
+    features = {
+        "pore_pressure_MPa": pp.astype(np.float32, copy=False),
+        "vertical_stress_Sv_MPa": sv.astype(np.float32, copy=False),
+        "effective_pressure_physical_MPa": peff.astype(np.float32, copy=False),
+        "overpressure_ratio": overpressure_ratio.astype(np.float32, copy=False),
+        "effective_pressure_ratio": effective_pressure_ratio.astype(np.float32, copy=False),
+    }
+    normalize = str(config.get("stress", {}).get("normalize", "zscore")).lower()
+    for name in ("pore_pressure_MPa", "vertical_stress_Sv_MPa", "effective_pressure_physical_MPa"):
+        features[f"{name}_norm"] = normalize_array(features[name], method=normalize)
+    metadata = {
+        "pore_pressure_source": pp_source,
+        "vertical_stress_source": sv_source,
+        "effective_pressure_definition": "Peff = clip(Sv - Pp)",
+        "effective_pressure_clip_mpa": [float(clip[0]), float(clip[1])],
+    }
+    return features, warnings, metadata
+
+
 def compute_stress_brittleness_proxies(
     properties: Mapping[str, np.ndarray],
     stress_features: Mapping[str, np.ndarray],
@@ -135,3 +218,30 @@ def _fraction(values) -> np.ndarray:
     if finite.size and np.nanmax(finite) > 1.5:
         return arr / 100.0
     return arr
+
+
+def _depth_gradient_volume(z_volume: np.ndarray, gradient: float, intercept: float, datum: float) -> np.ndarray:
+    return (intercept + gradient * (z_volume.astype(np.float32) - np.float32(datum))).astype(np.float32)
+
+
+def _column_or_fallback(
+    properties: Mapping[str, np.ndarray],
+    key: str,
+    unit: str,
+    fallback: np.ndarray,
+    source_policy: str,
+    fallback_label: str,
+) -> tuple[np.ndarray, str]:
+    policy = source_policy.lower()
+    use_column = key in properties and policy in {"column", "column_or_hydrostatic", "column_or_gradient"}
+    if not use_column:
+        return fallback.astype(np.float32, copy=False), fallback_label
+    column = convert_stress_to_mpa(np.asarray(properties[key], dtype=np.float32), unit)
+    finite = np.isfinite(column)
+    if policy == "column" and not np.all(finite):
+        filled = np.where(finite, column, fallback)
+        return filled.astype(np.float32, copy=False), "column_with_gradient_fill"
+    if np.all(finite):
+        return column.astype(np.float32, copy=False), "column"
+    filled = np.where(finite, column, fallback)
+    return filled.astype(np.float32, copy=False), "column_with_gradient_fill"

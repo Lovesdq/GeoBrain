@@ -2,6 +2,12 @@
 
 ## 2026-05-05
 
+- Added the `Pp/Sv` physical effective-pressure extension experiment: optional `pore_pressure/Pp` and `vertical_stress/Sv` columns are now supported, with deterministic depth-gradient proxies when columns are absent.
+- Added `compute_geomechanics_features`, `sv_minus_pore_pressure` rock-physics mode, `elastic_physical_pressure` and `seismic_physical_pressure` export groups, and Exp-7/Exp-8 ablation comparisons against the existing stress-proxy workflow.
+- Added `geomechanics_metadata.json`, Peff/Pp/Sv correlations, and new publication figures including `nature_geomechanics_pressure_context.png`, `physical_peff_minus_stress_proxy.png`, and `nature_physical_peff_softdata.png`.
+- Updated Chinese README and `中文总结.md` with the `Peff=clip(Sv-Pp)` formula, default gradients, column-priority behavior, proxy-estimation limits, and current real-data interpretation boundaries.
+- Verified the extension with 10 unit tests, a synthetic demo to `/tmp/geobrain_softdata_demo_peff`, and a full real-data run to `/tmp/geobrain_softdata_grid_peff`; current `grid.csv` uses gradient proxies because `Pp/Sv` columns are absent.
+
 - Updated the stress-conditioned soft-data pipeline for the real `grid.csv` schema: `PR` is now permeability and `SH` is now a general stress proxy, while `sh1/sh2` remain vertical maximum/minimum stress proxies.
 - Reworked the pipeline README into Chinese, added `中文总结.md`, and documented the full experiment workflow, outputs, field definitions, validation results, and interpretation limits.
 - Improved publication visualization with Nature-style rcParams, robust percentile color limits, NaN gray rendering, symmetric seismic/difference scales, orthoslice plates, and enhanced facies crossplots.

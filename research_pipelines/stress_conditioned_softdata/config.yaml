@@ -20,13 +20,15 @@ columns:
   oil_saturation: [oil_saturation, So, SO, SOG, oil_sat, 含油饱和度]
   brittleness_index: [brittleness_index, BI, brittleness, 脆性指数]
   stress: [stress, SH, stress_proxy, 地应力]
+  pore_pressure: [pore_pressure, Pp, PP, pressure_pore, pore_pressure_mpa, 孔隙压力]
+  vertical_stress: [vertical_stress, Sv, SV, sigma_v, overburden_stress, 垂向总应力]
   SH1: [SH1, sh1, sigma_H, max_stress, vertical_max_stress, 垂向最大地应力, 最大主应力]
   SH2: [SH2, sh2, sigma_h, min_stress, vertical_min_stress, 垂向最小地应力, 最小主应力]
   facies: [facies, Facies, lithofacies, OilPhase, reservoir_class, 储层类别]
 
 schema:
   required_properties: [porosity, oil_saturation, brittleness_index, SH1, SH2, facies]
-  optional_properties: [permeability, gamma, stress]
+  optional_properties: [permeability, gamma, stress, pore_pressure, vertical_stress]
   facies_map:
     0: mudstone
     1: oil_layer
@@ -40,6 +42,8 @@ schema:
     gamma: API
     brittleness_index: percent
     stress: MPa
+    pore_pressure: MPa
+    vertical_stress: MPa
     SH1: MPa
     SH2: MPa
 
@@ -58,9 +62,21 @@ qc:
     gamma: [0.0, 300.0]
     brittleness_index: [0.0, 1.0]
     stress: [0.0, 120.0]
+    pore_pressure: [0.0, 120.0]
+    vertical_stress: [0.0, 150.0]
     SH1: [0.0, 120.0]
     SH2: [0.0, 120.0]
   figures: true
+
+geomechanics:
+  pore_pressure_source: column_or_hydrostatic
+  vertical_stress_source: column_or_gradient
+  pore_pressure_gradient_mpa_per_m: 0.00981
+  vertical_stress_gradient_mpa_per_m: 0.023
+  pore_pressure_at_datum_mpa: 0.0
+  vertical_stress_at_datum_mpa: 0.0
+  reference_datum_m: 0.0
+  effective_pressure_clip_mpa: [2.0, 80.0]
 
 stress:
   unit: MPa

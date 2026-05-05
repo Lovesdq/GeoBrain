@@ -62,6 +62,7 @@ def generate_elastic_properties(
         ``no_stress`` uses constant effective pressure.
         ``weak`` uses constant-pressure SoftSand/Gassmann plus empirical stress correction.
         ``strong`` passes a spatial pressure proxy into GeoBrain SoftSand.
+        ``sv_minus_pore_pressure`` uses Peff = Sv - pore pressure when available.
     """
     device = torch.device(device) if device is not None else select_device(config)
     dtype = torch.float32 if str(config.get("project", {}).get("dtype", "float32")) == "float32" else torch.float64
@@ -226,6 +227,13 @@ def _effective_pressure(
     shape = np.asarray(properties["porosity"]).shape
     if mode in {"no_stress", "weak"} or stress_features is None:
         return torch.full(shape, const, dtype=dtype, device=device)
+    if mode == "sv_minus_pore_pressure":
+        if "effective_pressure_physical_MPa" not in stress_features:
+            LOGGER.warning("sv_minus_pore_pressure requested without effective_pressure_physical_MPa; using constant pressure")
+            return torch.full(shape, const, dtype=dtype, device=device)
+        p = np.asarray(stress_features["effective_pressure_physical_MPa"], dtype=np.float32)
+        p = np.nan_to_num(p, nan=const, posinf=const, neginf=const)
+        return torch.as_tensor(p, dtype=dtype, device=device)
     mean_proxy = np.asarray(stress_features.get("mean_stress_proxy"), dtype=np.float32)
     scale = float(pressure_cfg.get("stress_to_pressure_scale", 0.60))
     offset = float(pressure_cfg.get("offset_mpa", 0.0))

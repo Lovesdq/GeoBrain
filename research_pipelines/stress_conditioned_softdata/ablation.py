@@ -66,6 +66,23 @@ def run_ablation(
     rows.extend(_difference_metrics("Exp-4_stress_seismic_minus_baseline", seis_no.tensors, seis_st.tensors, ["poststack_seismic", "AVO_gradient"]))
     rows.append(_runtime_row("Exp-4_stress_aware_seismic_soft_data", time.perf_counter() - t0))
 
+    t0 = time.perf_counter()
+    physical = precomputed.get("elastic_physical_pressure") or generate_elastic_properties(
+        grid.properties,
+        config,
+        stress_features=stress_features,
+        mode="sv_minus_pore_pressure",
+    )
+    rows.extend(_elastic_metrics("Exp-7_sv_pp_effective_pressure_rock_physics", physical.tensors, hard_with_stress))
+    rows.extend(_difference_metrics("Exp-7_physical_peff_minus_stress_proxy", stress.tensors, physical.tensors, ["Vp", "Vs", "density", "AI", "VpVs", "effective_pressure_proxy_MPa"]))
+    rows.append(_runtime_row("Exp-7_sv_pp_effective_pressure_rock_physics", time.perf_counter() - t0))
+
+    t0 = time.perf_counter()
+    seis_physical = precomputed.get("seismic_physical_pressure") or generate_seismic_softdata(physical.tensors, config)
+    rows.extend(_seismic_metrics("Exp-8_sv_pp_effective_pressure_seismic_soft_data", seis_physical.tensors, hard_with_stress))
+    rows.extend(_difference_metrics("Exp-8_physical_peff_seismic_minus_stress_proxy", seis_st.tensors, seis_physical.tensors, ["poststack_seismic", "AVO_gradient"]))
+    rows.append(_runtime_row("Exp-8_sv_pp_effective_pressure_seismic_soft_data", time.perf_counter() - t0))
+
     if bool(config.get("uncertainty", {}).get("enabled", False)):
         t0 = time.perf_counter()
         unc = run_uncertainty(grid.properties, config, stress_features, include_seismic=False)
@@ -84,7 +101,7 @@ def run_ablation(
 
     _write_metrics(output_dir / "metrics.csv", rows)
     save_json({"config": config, "elapsed_s": time.perf_counter() - start, "gpu": _gpu_info()}, output_dir / "ablation_log.json")
-    _save_ablation_figures(grid, no_stress.tensors, stress.tensors, seis_no.tensors, seis_st.tensors, config, output_dir)
+    _save_ablation_figures(grid, no_stress.tensors, stress.tensors, physical.tensors, seis_no.tensors, seis_st.tensors, seis_physical.tensors, config, output_dir)
     return rows
 
 
@@ -220,10 +237,12 @@ def _write_metrics(path: Path, rows: list[Dict[str, Any]]) -> None:
         writer.writerows(rows)
 
 
-def _save_ablation_figures(grid, no_stress, stress, seis_no, seis_st, config, output_dir: Path) -> None:
+def _save_ablation_figures(grid, no_stress, stress, physical, seis_no, seis_st, seis_physical, config, output_dir: Path) -> None:
     dpi = int(config.get("export", {}).get("figures_dpi", 300))
     save_difference_panel(no_stress, stress, ["Vp", "Vs", "density", "AI", "VpVs"], output_dir / "figures" / "stress_minus_baseline_elastic.png", dpi=dpi)
+    save_difference_panel(stress, physical, ["Vp", "Vs", "density", "AI", "VpVs", "effective_pressure_proxy_MPa"], output_dir / "figures" / "physical_peff_minus_stress_proxy_elastic.png", dpi=dpi)
     save_difference_panel(seis_no, seis_st, ["poststack_seismic", "AVO_gradient"], output_dir / "figures" / "stress_minus_baseline_seismic.png", dpi=dpi)
+    save_difference_panel(seis_st, seis_physical, ["poststack_seismic", "AVO_gradient"], output_dir / "figures" / "physical_peff_minus_stress_proxy_seismic.png", dpi=dpi)
     if "facies" in grid.properties:
         save_crossplot(grid.properties["porosity"], _to_numpy(stress["AI"]), grid.properties["facies"], output_dir / "figures" / "porosity_ai_by_facies.png", "porosity", "AI", max_points=int(config.get("ablation", {}).get("max_crossplot_points", 20000)), dpi=dpi)
 
@@ -247,6 +266,11 @@ def _correlation_keys() -> tuple[str, ...]:
         "differential_stress",
         "stress_ratio",
         "stress_anisotropy_index",
+        "pore_pressure_MPa",
+        "vertical_stress_Sv_MPa",
+        "effective_pressure_physical_MPa",
+        "overpressure_ratio",
+        "effective_pressure_ratio",
     )
 
 
