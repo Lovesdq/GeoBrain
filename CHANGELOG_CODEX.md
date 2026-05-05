@@ -2,6 +2,9 @@
 
 ## 2026-05-05
 
+- Enhanced publication visualization for the stress-conditioned soft-data pipeline with unit-aware colorbars, display-name normalization, panel lettering, and an integrated Nature-style summary plate `nature_integrated_softdata_summary.png`.
+- Materialized the real `grid.csv` run output inside the repository at `research_pipelines/stress_conditioned_softdata_outputs/grid_peff`, including exports, QC, ablation metrics, logs, geomechanics metadata, and all figures.
+
 - Added the `Pp/Sv` physical effective-pressure extension experiment: optional `pore_pressure/Pp` and `vertical_stress/Sv` columns are now supported, with deterministic depth-gradient proxies when columns are absent.
 - Added `compute_geomechanics_features`, `sv_minus_pore_pressure` rock-physics mode, `elastic_physical_pressure` and `seismic_physical_pressure` export groups, and Exp-7/Exp-8 ablation comparisons against the existing stress-proxy workflow.
 - Added `geomechanics_metadata.json`, Peff/Pp/Sv correlations, and new publication figures including `nature_geomechanics_pressure_context.png`, `physical_peff_minus_stress_proxy.png`, and `nature_physical_peff_softdata.png`.

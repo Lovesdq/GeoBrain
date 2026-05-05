@@ -1,0 +1,18 @@
+2026-05-05 17:08:50,979 INFO stress_conditioned_softdata: Starting stress-conditioned soft-data pipeline
+2026-05-05 17:08:51,589 WARNING research_pipelines.stress_conditioned_softdata.data_schema: Optional columns not found: {'pore_pressure': ['pore_pressure', 'Pp', 'PP', 'pressure_pore', 'pore_pressure_mpa', '孔隙压力'], 'vertical_stress': ['vertical_stress', 'Sv', 'SV', 'sigma_v', 'overburden_stress', '垂向总应力']}
+2026-05-05 17:08:52,343 WARNING research_pipelines.stress_conditioned_softdata.grid_builder: Detected 4185 missing grid nodes
+2026-05-05 17:08:52,389 INFO research_pipelines.stress_conditioned_softdata.grid_builder: Recovered grid shape=(124, 283, 30), spacing=(10, 10, 5)
+2026-05-05 17:08:52,424 WARNING research_pipelines.stress_conditioned_softdata.qc: porosity: contains 4185 NaN values
+2026-05-05 17:08:52,456 WARNING research_pipelines.stress_conditioned_softdata.qc: oil_saturation: contains 4185 NaN values
+2026-05-05 17:08:52,490 WARNING research_pipelines.stress_conditioned_softdata.qc: brittleness_index: contains 4185 NaN values
+2026-05-05 17:08:52,524 WARNING research_pipelines.stress_conditioned_softdata.qc: SH1: contains 4185 NaN values
+2026-05-05 17:08:52,557 WARNING research_pipelines.stress_conditioned_softdata.qc: SH2: contains 4185 NaN values
+2026-05-05 17:08:52,585 WARNING research_pipelines.stress_conditioned_softdata.qc: permeability: contains 4185 NaN values
+2026-05-05 17:08:52,618 WARNING research_pipelines.stress_conditioned_softdata.qc: gamma: contains 4185 NaN values
+2026-05-05 17:08:52,648 WARNING research_pipelines.stress_conditioned_softdata.qc: stress: contains 4185 NaN values
+2026-05-05 17:08:57,901 WARNING research_pipelines.stress_conditioned_softdata.stress_features: pore_pressure unavailable or incomplete; using hydrostatic_gradient proxy where needed
+2026-05-05 17:08:57,902 WARNING research_pipelines.stress_conditioned_softdata.stress_features: vertical_stress/Sv unavailable or incomplete; using overburden_gradient proxy where needed
+2026-05-05 17:08:58,050 WARNING research_pipelines.stress_conditioned_softdata.rock_physics_stress: CUDA requested but unavailable; falling back to CPU
+2026-05-05 17:08:58,135 WARNING research_pipelines.stress_conditioned_softdata.rock_physics_stress: CUDA requested but unavailable; falling back to CPU
+2026-05-05 17:08:58,198 WARNING research_pipelines.stress_conditioned_softdata.rock_physics_stress: CUDA requested but unavailable; falling back to CPU
+2026-05-05 17:10:07,147 INFO stress_conditioned_softdata: Pipeline complete in 76.17 s. Stress warnings=[] Geomechanics warnings=['pore_pressure unavailable or incomplete; using hydrostatic_gradient proxy where needed', 'vertical_stress/Sv unavailable or incomplete; using overburden_gradient proxy where needed']

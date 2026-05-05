@@ -68,8 +68,9 @@ def save_slice_panel(
         cmap = _colormap(name)
         vmin, vmax = _robust_limits(slc, name)
         im = ax.imshow(slc.T, origin="lower", aspect="auto", cmap=cmap, vmin=vmin, vmax=vmax, interpolation="nearest")
-        _format_image_axis(ax, name)
-        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.025)
+        _format_image_axis(ax, _display_name(name))
+        cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.025)
+        _label_colorbar(cbar, name)
     for ax in axes.ravel()[len(items):]:
         ax.axis("off")
     fig.tight_layout(pad=0.2, w_pad=0.4, h_pad=0.6)
@@ -118,11 +119,65 @@ def save_volume_orthoslices(
                 ax.axis("off")
                 continue
             last_im = ax.imshow(panel.T, origin="lower", aspect="auto", cmap=cmap, vmin=vmin, vmax=vmax, interpolation="nearest")
-            title = f"{name} - {label}" if col == 0 or arr.ndim <= 2 else label
+            title = f"{_display_name(name)} - {label}" if col == 0 or arr.ndim <= 2 else label
             _format_image_axis(ax, title)
         if last_im is not None:
-            fig.colorbar(last_im, ax=axes[row, :], fraction=0.018, pad=0.01)
+            cbar = fig.colorbar(last_im, ax=axes[row, :], fraction=0.018, pad=0.01)
+            _label_colorbar(cbar, name)
     fig.subplots_adjust(left=0.07, right=0.93, top=0.98, bottom=0.04, wspace=0.22, hspace=0.45)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=dpi)
+    plt.close(fig)
+
+
+def save_composite_slice_plate(
+    volumes: Mapping[str, Any],
+    output_path: str | Path,
+    axis: int = 0,
+    index: int | None = None,
+    dpi: int = 600,
+    max_items: int = 12,
+    ncols: int = 4,
+) -> None:
+    """Save a manuscript-grade integrated central-slice plate.
+
+    The plate is intended as a first-pass main figure: it combines hard data,
+    geomechanical context, elastic soft data, seismic soft data and selected
+    model differences in one consistent layout with panel letters and units.
+    """
+    import matplotlib
+
+    matplotlib.use("Agg", force=True)
+    import matplotlib.pyplot as plt
+
+    apply_publication_style(dpi)
+    items = list(volumes.items())[:max_items]
+    if not items:
+        return
+    ncols = max(1, min(int(ncols), len(items)))
+    nrows = int(np.ceil(len(items) / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(2.05 * ncols, 1.95 * nrows), squeeze=False)
+    for idx, (name, volume) in enumerate(items):
+        ax = axes.ravel()[idx]
+        arr = _to_numpy(volume)
+        while arr.ndim > 3:
+            arr = arr[0]
+        if arr.ndim == 0:
+            arr = arr.reshape(1, 1)
+        slc = _slice(arr, axis=axis, index=index)
+        cmap = _colormap(name)
+        vmin, vmax = _robust_limits(slc, name)
+        im = ax.imshow(slc.T, origin="lower", aspect="auto", cmap=cmap, vmin=vmin, vmax=vmax, interpolation="nearest")
+        row = idx // ncols
+        col = idx % ncols
+        _format_compact_image_axis(ax, _display_name(name), show_xlabel=row == nrows - 1, show_ylabel=col == 0)
+        _add_panel_letter(ax, idx)
+        cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.018)
+        _label_colorbar(cbar, name)
+    for ax in axes.ravel()[len(items):]:
+        ax.axis("off")
+    fig.tight_layout(pad=0.18, w_pad=0.35, h_pad=0.42)
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path, dpi=dpi)
@@ -278,6 +333,103 @@ def _format_image_axis(ax, title: str) -> None:
     ax.set_ylabel("sample")
     ax.tick_params(direction="out")
     _despine(ax)
+
+
+def _format_compact_image_axis(ax, title: str, show_xlabel: bool, show_ylabel: bool) -> None:
+    ax.set_title(title, pad=2)
+    ax.set_xlabel("inline / crossline" if show_xlabel else "")
+    ax.set_ylabel("depth sample" if show_ylabel else "")
+    if not show_xlabel:
+        ax.set_xticklabels([])
+    if not show_ylabel:
+        ax.set_yticklabels([])
+    ax.tick_params(direction="out", length=2.0)
+    _despine(ax)
+
+
+def _add_panel_letter(ax, idx: int) -> None:
+    letter = chr(ord("a") + idx)
+    ax.text(
+        0.02,
+        0.98,
+        letter,
+        transform=ax.transAxes,
+        ha="left",
+        va="top",
+        fontsize=8,
+        fontweight="bold",
+        color="black",
+        bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.78, "pad": 1.2},
+    )
+
+
+def _label_colorbar(cbar, name: str) -> None:
+    label = _unit_label(name)
+    if label:
+        cbar.ax.set_ylabel(label, rotation=90, labelpad=3)
+    cbar.ax.tick_params(length=2.0, width=0.45)
+
+
+def _display_name(name: str) -> str:
+    labels = {
+        "facies": "Facies",
+        "porosity": "Porosity",
+        "oil_saturation": "Oil saturation",
+        "brittleness_index": "Brittleness index",
+        "permeability": "Permeability",
+        "gamma": "Gamma ray",
+        "mean_stress_proxy": "Mean stress proxy",
+        "differential_stress": "Differential stress",
+        "stress_anisotropy_index": "Stress anisotropy index",
+        "pore_pressure_MPa": "Pore pressure Pp",
+        "vertical_stress_Sv_MPa": "Vertical stress Sv",
+        "effective_pressure_physical_MPa": "Peff = Sv - Pp",
+        "overpressure_ratio": "Overpressure ratio",
+        "effective_pressure_ratio": "Effective-pressure ratio",
+        "Vp": "P-wave velocity",
+        "Vs": "S-wave velocity",
+        "density": "Density",
+        "VpVs": "Vp/Vs",
+        "AI": "Acoustic impedance",
+        "SI": "Shear impedance",
+        "poststack_seismic": "Post-stack seismic",
+        "AVO_intercept": "AVO intercept",
+        "AVO_gradient": "AVO gradient",
+        "horizon_probability": "Horizon probability",
+        "signed_distance_field": "Signed distance field",
+        "AI_physical_minus_stress_proxy": "AI: physical Peff minus stress proxy",
+        "seismic_physical_minus_stress_proxy": "Seismic: physical Peff minus stress proxy",
+    }
+    if name in labels:
+        return labels[name]
+    return name.replace("_", " ")
+
+
+def _unit_label(name: str) -> str:
+    lname = name.lower()
+    if lname in {"facies"} or "mask" in lname:
+        return "class"
+    if "porosity" in lname or "saturation" in lname or "brittleness" in lname:
+        return "%"
+    if "permeability" in lname:
+        return "mD"
+    if "gamma" in lname:
+        return "API"
+    if "ai_physical_minus" in lname or lname in {"ai", "si"} or "impedance" in lname:
+        return "AI units"
+    if "seismic_physical_minus" in lname or "seismic" in lname or "reflectivity" in lname:
+        return "amplitude"
+    if "ratio" in lname or "anisotropy" in lname or "gradient" in lname or "intercept" in lname or "probability" in lname or lname == "vpvs":
+        return "unitless"
+    if "pressure" in lname or "stress" in lname:
+        return "MPa"
+    if lname in {"vp", "vs"}:
+        return "m/s"
+    if "density" in lname:
+        return "g/cm3"
+    if "distance" in lname:
+        return "samples"
+    return ""
 
 
 def _despine(ax) -> None:

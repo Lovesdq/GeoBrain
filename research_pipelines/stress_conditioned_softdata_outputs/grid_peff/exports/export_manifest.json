@@ -1,0 +1,36 @@
+{
+  "grid": {
+    "nx": 124,
+    "ny": 283,
+    "nz": 30,
+    "n_points": 1048575,
+    "expected_grid_points": 1052760,
+    "dx": 10.0,
+    "dy": 10.0,
+    "dz": 5.0,
+    "regular_x": true,
+    "regular_y": true,
+    "regular_z": true,
+    "is_complete": false,
+    "duplicate_count": 0,
+    "missing_count": 4185,
+    "coordinate_units": "m",
+    "z_positive_down": true,
+    "input_order_monotonic": {
+      "x": "increasing",
+      "y": "not_monotonic",
+      "z": "not_monotonic"
+    }
+  },
+  "groups": [
+    "grid_properties",
+    "stress_features",
+    "elastic_no_stress",
+    "elastic_stress",
+    "elastic_physical_pressure",
+    "seismic_no_stress",
+    "seismic_stress",
+    "seismic_physical_pressure",
+    "horizon_softdata"
+  ]
+}

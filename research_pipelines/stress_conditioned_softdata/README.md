@@ -86,6 +86,12 @@ cd /home/likunxi/data/GeoBrain
   --device cuda:4
 ```
 
+当前已按真实 `grid.csv` 生成一份仓库内完整输出：
+
+`/home/likunxi/data/GeoBrain/research_pipelines/stress_conditioned_softdata_outputs/grid_peff`
+
+该目录包含 `exports/`、`figures/`、`qc/`、`ablation/`、`metadata.json`、`geomechanics_metadata.json`、`pipeline.log` 和 `config_used.yaml`。
+
 如果 4 号 GPU 不可用，代码会记录 warning 并自动降级到 CPU。当前测试环境中 `cuda:4` 不可用，真实数据在 CPU 下也能跑通。
 
 ## 4. 输出结构
@@ -106,6 +112,7 @@ cd /home/likunxi/data/GeoBrain
 - `exports/seismic_physical_pressure.*`：`Sv-Pp` physical effective-pressure 地震扩展实验。
 - `exports/horizon_softdata.*`：储层 mask、顶/底界面、horizon probability 和 SDF。
 - `figures/`：论文图件，包括普通切片图、差异图、crossplot 和 Nature 风格正交三切片图版。
+- `figures/nature_integrated_softdata_summary.png`：整合硬数据、`Peff`、弹性、地震、层位和差异结果的投稿主图候选，包含 panel lettering 和单位化色标。
 - `ablation/metrics.csv`：Exp-0 到 Exp-8 的统计、相关系数、separability、差异和运行时间指标。
 
 ## 5. 科研方法路线
@@ -151,7 +158,7 @@ cd /home/likunxi/data/GeoBrain
 - synthetic small grid 可以端到端运行。
 - 当前真实 `grid.csv` 可恢复为规则网格候选；上一次运行识别到 `124 x 283 x 30` 网格、`4185` 个缺失节点、无重复节点。
 - 当前真实 `grid.csv` 缺少 `Pp/Sv` 列，已验证会使用深度梯度代理生成 `pore_pressure_MPa`、`vertical_stress_Sv_MPa` 和 `effective_pressure_physical_MPa`，并写入 `geomechanics_metadata.json`。
-- `/tmp/geobrain_softdata_grid_peff` 真实运行已生成 `elastic_physical_pressure`、`seismic_physical_pressure`、Exp-7/Exp-8 指标和 `nature_geomechanics_pressure_context.png`。
+- `research_pipelines/stress_conditioned_softdata_outputs/grid_peff` 真实运行已生成 `elastic_physical_pressure`、`seismic_physical_pressure`、Exp-7/Exp-8 指标、`nature_geomechanics_pressure_context.png` 和 `nature_integrated_softdata_summary.png`。
 - 原始数据和运行结果中存在缺失节点对应的 NaN，QC 报告会显式记录。
 
 ## 9. 论文表述边界

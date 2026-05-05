@@ -1,0 +1,16 @@
+{
+  "geomechanics": {
+    "pore_pressure_source": "hydrostatic_gradient",
+    "vertical_stress_source": "overburden_gradient",
+    "effective_pressure_definition": "Peff = clip(Sv - Pp)",
+    "effective_pressure_clip_mpa": [
+      2.0,
+      80.0
+    ]
+  },
+  "warnings": [
+    "pore_pressure unavailable or incomplete; using hydrostatic_gradient proxy where needed",
+    "vertical_stress/Sv unavailable or incomplete; using overburden_gradient proxy where needed"
+  ],
+  "interpretation": "Pp/Sv are column-priority values with deterministic gradient proxies when columns are absent or incomplete."
+}

@@ -1,0 +1,69 @@
+{
+  "n_rows": 1048575,
+  "input_columns": [
+    "x",
+    "y",
+    "z",
+    "PORO",
+    "GR",
+    "SOG",
+    "SH",
+    "PR",
+    "BI",
+    "sh1",
+    "sh2",
+    "OilPhase"
+  ],
+  "column_map": {
+    "x": "x",
+    "y": "y",
+    "z": "z",
+    "porosity": "PORO",
+    "oil_saturation": "SOG",
+    "brittleness_index": "BI",
+    "SH1": "sh1",
+    "SH2": "sh2",
+    "facies": "OilPhase",
+    "permeability": "PR",
+    "gamma": "GR",
+    "stress": "SH"
+  },
+  "required_missing": {},
+  "optional_missing": {
+    "pore_pressure": [
+      "pore_pressure",
+      "Pp",
+      "PP",
+      "pressure_pore",
+      "pore_pressure_mpa",
+      "孔隙压力"
+    ],
+    "vertical_stress": [
+      "vertical_stress",
+      "Sv",
+      "SV",
+      "sigma_v",
+      "overburden_stress",
+      "垂向总应力"
+    ]
+  },
+  "facies_code_to_name": {
+    "0": "mudstone",
+    "1": "oil_layer",
+    "2": "poor_oil_layer",
+    "3": "dry_layer"
+  },
+  "property_units": {
+    "porosity": "percent",
+    "oil_saturation": "percent",
+    "permeability": "mD",
+    "gamma": "API",
+    "brittleness_index": "percent",
+    "stress": "MPa",
+    "pore_pressure": "MPa",
+    "vertical_stress": "MPa",
+    "SH1": "MPa",
+    "SH2": "MPa"
+  },
+  "demo": false
+}
