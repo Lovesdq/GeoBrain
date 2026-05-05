@@ -24,7 +24,7 @@ try:
     from .seismic_softdata import generate_seismic_softdata
     from .stress_features import compute_stress_brittleness_proxies, compute_stress_features
     from .uncertainty import run_uncertainty
-    from .visualization import save_crossplot, save_difference_panel, save_slice_panel
+    from .visualization import save_crossplot, save_difference_panel, save_slice_panel, save_volume_orthoslices
 except ImportError:  # Allows: python research_pipelines/.../run_pipeline.py
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from research_pipelines.stress_conditioned_softdata.ablation import run_ablation
@@ -37,7 +37,7 @@ except ImportError:  # Allows: python research_pipelines/.../run_pipeline.py
     from research_pipelines.stress_conditioned_softdata.seismic_softdata import generate_seismic_softdata
     from research_pipelines.stress_conditioned_softdata.stress_features import compute_stress_brittleness_proxies, compute_stress_features
     from research_pipelines.stress_conditioned_softdata.uncertainty import run_uncertainty
-    from research_pipelines.stress_conditioned_softdata.visualization import save_crossplot, save_difference_panel, save_slice_panel
+    from research_pipelines.stress_conditioned_softdata.visualization import save_crossplot, save_difference_panel, save_slice_panel, save_volume_orthoslices
 
 
 LOGGER = logging.getLogger("stress_conditioned_softdata")
@@ -74,7 +74,6 @@ def main(argv: list[str] | None = None) -> int:
     stress_features, stress_warnings = compute_stress_features(grid.properties, config)
     stress_extra = compute_stress_brittleness_proxies(grid.properties, stress_features, config)
     stress_features.update(stress_extra)
-    grid.properties.update(stress_features)
 
     elastic_no = generate_elastic_properties(grid.properties, config, stress_features=stress_features, mode="no_stress")
     elastic_stress = generate_elastic_properties(
@@ -104,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
         for key, stats in uncertainty.items():
             save_npz(output_dir / "exports" / f"uncertainty_{key}.npz", stats)
 
-    save_figures(grid, elastic_no.tensors, elastic_stress.tensors, seismic_stress.tensors, horizon.tensors, config, output_dir)
+    save_figures(grid, stress_features, elastic_no.tensors, elastic_stress.tensors, seismic_stress.tensors, horizon.tensors, config, output_dir)
 
     if bool(config.get("ablation", {}).get("enabled", True)):
         run_ablation(
@@ -167,12 +166,13 @@ def synthetic_dataframe(config: Mapping[str, Any]):
             "y": Y.ravel(),
             "z": Z.ravel(),
             "PORO": poro.ravel(),
-            "PERM": perm.ravel(),
             "GR": gr.ravel(),
             "SOG": np.clip(sog, 0, 100).ravel(),
+            "SH": (0.5 * (sh1 + sh2)).ravel(),
             "BI": np.clip(bi, 0, 100).ravel(),
             "sh1": sh1.ravel(),
             "sh2": sh2.ravel(),
+            "PR": perm.ravel(),
             "OilPhase": facies.ravel(),
         }
     )
@@ -180,6 +180,7 @@ def synthetic_dataframe(config: Mapping[str, Any]):
 
 def save_figures(
     grid,
+    stress_features: Mapping[str, Any],
     elastic_no: Mapping[str, Any],
     elastic_stress: Mapping[str, Any],
     seismic: Mapping[str, Any],
@@ -194,6 +195,11 @@ def save_figures(
     save_slice_panel({k: seismic[k] for k in ["poststack_seismic", "AVO_intercept", "AVO_gradient"] if k in seismic}, fig_dir / "seismic_softdata_slices.png", dpi=dpi)
     save_slice_panel(horizon, fig_dir / "horizon_softdata_slices.png", dpi=dpi)
     save_difference_panel(elastic_no, elastic_stress, ["Vp", "Vs", "density", "AI", "VpVs"], fig_dir / "stress_aware_minus_baseline.png", dpi=dpi)
+    context = {k: grid.properties[k] for k in ["facies", "porosity", "oil_saturation", "permeability", "gamma", "stress", "SH1", "SH2"] if k in grid.properties}
+    context.update({k: stress_features[k] for k in ["mean_stress_proxy", "differential_stress", "stress_anisotropy_index"] if k in stress_features})
+    save_volume_orthoslices(context, fig_dir / "nature_harddata_stress_context.png", dpi=dpi, max_items=6)
+    save_volume_orthoslices({k: elastic_stress[k] for k in ["Vp", "Vs", "density", "VpVs", "AI", "SI"] if k in elastic_stress}, fig_dir / "nature_elastic_orthoslices.png", dpi=dpi, max_items=6)
+    save_volume_orthoslices({**{k: seismic[k] for k in ["poststack_seismic", "AVO_intercept", "AVO_gradient"] if k in seismic}, **{k: horizon[k] for k in ["horizon_probability", "signed_distance_field"] if k in horizon}}, fig_dir / "nature_seismic_horizon_orthoslices.png", dpi=dpi, max_items=5)
     if "facies" in grid.properties:
         save_crossplot(grid.properties["porosity"], elastic_stress["AI"], grid.properties["facies"], fig_dir / "porosity_ai_crossplot.png", "porosity", "AI", dpi=dpi)
         save_crossplot(grid.properties["oil_saturation"], seismic["AVO_gradient"], grid.properties["facies"][:, :, :-1], fig_dir / "oil_saturation_avo_gradient_crossplot.png", "oil saturation", "AVO gradient", dpi=dpi)

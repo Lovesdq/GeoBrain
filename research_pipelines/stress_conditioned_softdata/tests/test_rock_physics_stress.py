@@ -37,6 +37,7 @@ def test_generate_elastic_properties_positive_outputs():
         "porosity": np.full(shape, 18.0, dtype=np.float32),
         "oil_saturation": np.full(shape, 55.0, dtype=np.float32),
         "brittleness_index": np.full(shape, 50.0, dtype=np.float32),
+        "stress": np.full(shape, 30.0, dtype=np.float32),
         "SH1": np.full(shape, 34.0, dtype=np.float32),
         "SH2": np.full(shape, 27.0, dtype=np.float32),
         "facies": np.ones(shape, dtype=np.int16),

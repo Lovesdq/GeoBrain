@@ -14,13 +14,15 @@ def _config():
             "porosity": ["PORO"],
             "oil_saturation": ["SOG"],
             "brittleness_index": ["BI"],
+            "permeability": ["PR"],
+            "stress": ["SH"],
             "SH1": ["sh1"],
             "SH2": ["sh2"],
             "facies": ["OilPhase"],
         },
         "schema": {
             "required_properties": ["porosity", "oil_saturation", "brittleness_index", "SH1", "SH2", "facies"],
-            "optional_properties": [],
+            "optional_properties": ["permeability", "stress"],
             "facies_map": {0: "mudstone", 1: "oil_layer"},
         },
         "grid": {"tolerance": 1.0e-6, "duplicate_policy": "first"},
@@ -38,6 +40,8 @@ def test_build_regular_grid_detects_missing_and_duplicates():
             "PORO": np.full(X.size, 20.0),
             "SOG": np.full(X.size, 60.0),
             "BI": np.full(X.size, 50.0),
+            "PR": np.full(X.size, 120.0),
+            "SH": np.full(X.size, 31.0),
             "sh1": np.full(X.size, 35.0),
             "sh2": np.full(X.size, 28.0),
             "OilPhase": np.ones(X.size, dtype=int),
@@ -50,3 +54,5 @@ def test_build_regular_grid_detects_missing_and_duplicates():
     assert grid.metadata["missing_count"] == 1
     assert grid.metadata["duplicate_count"] == 1
     assert grid.properties["porosity"].shape == (2, 3, 4)
+    assert "permeability" in grid.properties
+    assert "stress" in grid.properties

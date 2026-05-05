@@ -53,9 +53,16 @@ def compute_stress_features(
         "stress_mean_proxy": mean_proxy.astype(np.float32, copy=False),
     }
 
+    if "stress" in properties:
+        stress_unit = config.get("schema", {}).get("property_units", {}).get("stress", unit)
+        stress = convert_stress_to_mpa(properties["stress"].astype(np.float32, copy=False), stress_unit)
+        features["stress_MPa"] = stress.astype(np.float32, copy=False)
+
     normalize = str(config.get("stress", {}).get("normalize", "zscore")).lower()
     for name in ("differential_stress", "stress_ratio", "stress_anisotropy_index", "mean_stress_proxy"):
         features[f"{name}_norm"] = normalize_array(features[name], method=normalize)
+    if "stress_MPa" in features:
+        features["stress_MPa_norm"] = normalize_array(features["stress_MPa"], method=normalize)
     return features, warnings
 
 

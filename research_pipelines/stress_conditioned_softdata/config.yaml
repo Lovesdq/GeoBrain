@@ -15,17 +15,18 @@ columns:
   y: [Y, y, Northing, northing, j, crossline]
   z: [Z, z, Depth, depth, TVD, k]
   porosity: [porosity, Porosity, phi, PHI, PORO, 孔隙度]
-  permeability: [permeability, Perm, PERM, K, 渗透率]
+  permeability: [permeability, Perm, PERM, PR, K, 渗透率]
   gamma: [gamma, GR, Gamma, natural_gamma, 自然伽马]
   oil_saturation: [oil_saturation, So, SO, SOG, oil_sat, 含油饱和度]
   brittleness_index: [brittleness_index, BI, brittleness, 脆性指数]
-  SH1: [SH1, sh1, sigma_H, max_stress, 最大主应力]
-  SH2: [SH2, sh2, sigma_h, min_stress, 最小主应力]
+  stress: [stress, SH, stress_proxy, 地应力]
+  SH1: [SH1, sh1, sigma_H, max_stress, vertical_max_stress, 垂向最大地应力, 最大主应力]
+  SH2: [SH2, sh2, sigma_h, min_stress, vertical_min_stress, 垂向最小地应力, 最小主应力]
   facies: [facies, Facies, lithofacies, OilPhase, reservoir_class, 储层类别]
 
 schema:
   required_properties: [porosity, oil_saturation, brittleness_index, SH1, SH2, facies]
-  optional_properties: [permeability, gamma]
+  optional_properties: [permeability, gamma, stress]
   facies_map:
     0: mudstone
     1: oil_layer
@@ -38,6 +39,7 @@ schema:
     permeability: mD
     gamma: API
     brittleness_index: percent
+    stress: MPa
     SH1: MPa
     SH2: MPa
 
@@ -55,6 +57,7 @@ qc:
     permeability: [0.0, 10000.0]
     gamma: [0.0, 300.0]
     brittleness_index: [0.0, 1.0]
+    stress: [0.0, 120.0]
     SH1: [0.0, 120.0]
     SH2: [0.0, 120.0]
   figures: true
@@ -139,7 +142,7 @@ export:
   save_torch: true
   save_vtk: false
   save_segy: false
-  figures_dpi: 300
+  figures_dpi: 600
 
 ablation:
   enabled: true

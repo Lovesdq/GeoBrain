@@ -38,30 +38,31 @@ def run_ablation(
     precomputed = precomputed or {}
 
     rows.extend(_exp0_hard_data_stats(grid))
+    hard_with_stress = {**grid.properties, **stress_features}
 
     t0 = time.perf_counter()
     no_stress = precomputed.get("elastic_no_stress") or generate_elastic_properties(
         grid.properties, config, stress_features=stress_features, mode="no_stress"
     )
-    rows.extend(_elastic_metrics("Exp-1_no_stress_rock_physics", no_stress.tensors, grid.properties))
+    rows.extend(_elastic_metrics("Exp-1_no_stress_rock_physics", no_stress.tensors, hard_with_stress))
     rows.append(_runtime_row("Exp-1_no_stress_rock_physics", time.perf_counter() - t0))
 
     t0 = time.perf_counter()
     stress = precomputed.get("elastic_stress") or generate_elastic_properties(
         grid.properties, config, stress_features=stress_features, mode=config.get("rock_physics", {}).get("mode", "strong")
     )
-    rows.extend(_elastic_metrics("Exp-2_stress_aware_rock_physics", stress.tensors, grid.properties))
+    rows.extend(_elastic_metrics("Exp-2_stress_aware_rock_physics", stress.tensors, hard_with_stress))
     rows.extend(_difference_metrics("Exp-2_stress_minus_baseline", no_stress.tensors, stress.tensors, ["Vp", "Vs", "density", "AI", "VpVs"]))
     rows.append(_runtime_row("Exp-2_stress_aware_rock_physics", time.perf_counter() - t0))
 
     t0 = time.perf_counter()
     seis_no = precomputed.get("seismic_no_stress") or generate_seismic_softdata(no_stress.tensors, config)
-    rows.extend(_seismic_metrics("Exp-3_no_stress_seismic_soft_data", seis_no.tensors, grid.properties))
+    rows.extend(_seismic_metrics("Exp-3_no_stress_seismic_soft_data", seis_no.tensors, hard_with_stress))
     rows.append(_runtime_row("Exp-3_no_stress_seismic_soft_data", time.perf_counter() - t0))
 
     t0 = time.perf_counter()
     seis_st = precomputed.get("seismic_stress") or generate_seismic_softdata(stress.tensors, config)
-    rows.extend(_seismic_metrics("Exp-4_stress_aware_seismic_soft_data", seis_st.tensors, grid.properties))
+    rows.extend(_seismic_metrics("Exp-4_stress_aware_seismic_soft_data", seis_st.tensors, hard_with_stress))
     rows.extend(_difference_metrics("Exp-4_stress_seismic_minus_baseline", seis_no.tensors, seis_st.tensors, ["poststack_seismic", "AVO_gradient"]))
     rows.append(_runtime_row("Exp-4_stress_aware_seismic_soft_data", time.perf_counter() - t0))
 
@@ -113,7 +114,7 @@ def _elastic_metrics(experiment: str, tensors: Mapping[str, Any], hard: Mapping[
             rows.extend(_facies_rows(experiment, key, arr, facies))
             rows.append({"experiment": experiment, "property": key, "metric": "facies_separability_fisher", "value": fisher_separability(arr, facies)})
     for soft_key in ("AI", "VpVs"):
-        for hard_key in ("porosity", "oil_saturation", "brittleness_index", "SH1", "SH2"):
+        for hard_key in _correlation_keys():
             if hard_key in hard:
                 rows.append({"experiment": experiment, "property": soft_key, "metric": f"corr_with_{hard_key}", "value": pearson_corr(_to_numpy(tensors[soft_key]), hard[hard_key])})
     return rows
@@ -127,7 +128,7 @@ def _seismic_metrics(experiment: str, tensors: Mapping[str, Any], hard: Mapping[
         rows.extend(_stats_rows(experiment, key, arr))
         if facies is not None:
             rows.append({"experiment": experiment, "property": key, "metric": "facies_separability_fisher", "value": fisher_separability(arr, facies)})
-        for hard_key in ("porosity", "oil_saturation", "brittleness_index", "SH1", "SH2"):
+        for hard_key in _correlation_keys():
             if hard_key in hard:
                 rows.append({"experiment": experiment, "property": key, "metric": f"corr_with_{hard_key}", "value": pearson_corr(arr, hard[hard_key])})
     return rows
@@ -229,6 +230,24 @@ def _save_ablation_figures(grid, no_stress, stress, seis_no, seis_st, config, ou
 
 def _runtime_row(experiment: str, elapsed: float) -> Dict[str, Any]:
     return {"experiment": experiment, "property": "runtime", "metric": "seconds", "value": float(elapsed)}
+
+
+def _correlation_keys() -> tuple[str, ...]:
+    return (
+        "porosity",
+        "oil_saturation",
+        "brittleness_index",
+        "permeability",
+        "gamma",
+        "stress",
+        "SH1",
+        "SH2",
+        "stress_MPa",
+        "mean_stress_proxy",
+        "differential_stress",
+        "stress_ratio",
+        "stress_anisotropy_index",
+    )
 
 
 def _gpu_info() -> Dict[str, Any]:

@@ -104,7 +104,9 @@ def save_qc_figures(grid: GridData, output_dir: str | Path, dpi: int = 300) -> N
 
     matplotlib.use("Agg", force=True)
     import matplotlib.pyplot as plt
+    from .visualization import apply_publication_style
 
+    apply_publication_style(dpi)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     ix = max(0, grid.shape[0] // 2)
@@ -114,15 +116,18 @@ def save_qc_figures(grid: GridData, output_dir: str | Path, dpi: int = 300) -> N
         finite = arr[np.isfinite(arr)]
         if finite.size == 0:
             continue
-        fig, axes = plt.subplots(1, 2, figsize=(9, 3.5))
-        axes[0].hist(finite.ravel(), bins=60, color="#386cb0", alpha=0.85)
+        fig, axes = plt.subplots(1, 2, figsize=(5.6, 2.25))
+        axes[0].hist(finite.ravel(), bins=70, color="#3b6ea8", alpha=0.88, linewidth=0)
         axes[0].set_title(f"{name} histogram")
         axes[0].set_xlabel(name)
         axes[0].set_ylabel("count")
         im = axes[1].imshow(arr[ix].T, origin="lower", aspect="auto", cmap="viridis")
         axes[1].set_title(f"{name} inline {ix}")
-        fig.colorbar(im, ax=axes[1], fraction=0.046, pad=0.04)
-        fig.tight_layout()
+        fig.colorbar(im, ax=axes[1], fraction=0.046, pad=0.025)
+        for ax in axes:
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+        fig.tight_layout(pad=0.25)
         fig.savefig(output_dir / f"{name}_qc.png", dpi=dpi)
         plt.close(fig)
 
