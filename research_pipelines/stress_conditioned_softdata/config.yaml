@@ -1,0 +1,146 @@
+project:
+  name: stress_conditioned_softdata
+  random_seed: 20260505
+  output_dir: outputs/stress_conditioned_softdata
+  device: cuda:4
+  dtype: float32
+
+input:
+  path: grid.csv
+  format: auto
+  chunk_rows: 500000
+
+columns:
+  x: [X, x, Easting, easting, i, inline]
+  y: [Y, y, Northing, northing, j, crossline]
+  z: [Z, z, Depth, depth, TVD, k]
+  porosity: [porosity, Porosity, phi, PHI, PORO, 孔隙度]
+  permeability: [permeability, Perm, PERM, K, 渗透率]
+  gamma: [gamma, GR, Gamma, natural_gamma, 自然伽马]
+  oil_saturation: [oil_saturation, So, SO, SOG, oil_sat, 含油饱和度]
+  brittleness_index: [brittleness_index, BI, brittleness, 脆性指数]
+  SH1: [SH1, sh1, sigma_H, max_stress, 最大主应力]
+  SH2: [SH2, sh2, sigma_h, min_stress, 最小主应力]
+  facies: [facies, Facies, lithofacies, OilPhase, reservoir_class, 储层类别]
+
+schema:
+  required_properties: [porosity, oil_saturation, brittleness_index, SH1, SH2, facies]
+  optional_properties: [permeability, gamma]
+  facies_map:
+    0: mudstone
+    1: oil_layer
+    2: poor_oil_layer
+    3: dry_layer
+  reservoir_facies: [oil_layer, poor_oil_layer]
+  property_units:
+    porosity: percent
+    oil_saturation: percent
+    permeability: mD
+    gamma: API
+    brittleness_index: percent
+    SH1: MPa
+    SH2: MPa
+
+grid:
+  tolerance: 1.0e-6
+  duplicate_policy: first
+  coordinate_units: m
+  z_positive_down: true
+
+qc:
+  percentiles: [1, 5, 50, 95, 99]
+  physical_ranges:
+    porosity: [0.0, 0.45]
+    oil_saturation: [0.0, 1.0]
+    permeability: [0.0, 10000.0]
+    gamma: [0.0, 300.0]
+    brittleness_index: [0.0, 1.0]
+    SH1: [0.0, 120.0]
+    SH2: [0.0, 120.0]
+  figures: true
+
+stress:
+  unit: MPa
+  normalize: zscore
+  effective_pressure:
+    mode: mean_stress_proxy
+    no_stress_mpa: 20.0
+    stress_to_pressure_scale: 0.60
+    offset_mpa: 0.0
+    min_mpa: 2.0
+    max_mpa: 80.0
+  weak_correction:
+    vp_zscore_coeff: 0.018
+    vs_zscore_coeff: 0.010
+    rho_zscore_coeff: 0.003
+    anisotropy_vp_coeff: 0.030
+    anisotropy_vs_coeff: 0.020
+
+rock_physics:
+  mode: strong
+  model: soft_sand_gassmann
+  critical_porosity: 0.40
+  coordination_number: 7.0
+  friction_coefficient: 1.0
+  porosity_clip: [0.01, 0.42]
+  oil_saturation_clip: [0.0, 1.0]
+  minerals:
+    mudstone: {quartz: 0.35, clay: 0.60, calcite: 0.05}
+    oil_layer: {quartz: 0.82, clay: 0.12, feldspar: 0.06}
+    poor_oil_layer: {quartz: 0.68, clay: 0.25, calcite: 0.07}
+    dry_layer: {quartz: 0.72, clay: 0.20, feldspar: 0.08}
+    default: {quartz: 0.75, clay: 0.20, calcite: 0.05}
+  fluids:
+    brine: brine
+    hydrocarbon: oil_medium
+    gas: gas
+    fluid_mixing: reuss
+  facies_parameters:
+    mudstone: {critical_porosity: 0.34, coordination_number: 8.5, pressure_multiplier: 1.10}
+    oil_layer: {critical_porosity: 0.40, coordination_number: 7.0, pressure_multiplier: 0.95}
+    poor_oil_layer: {critical_porosity: 0.38, coordination_number: 7.5, pressure_multiplier: 1.00}
+    dry_layer: {critical_porosity: 0.36, coordination_number: 8.0, pressure_multiplier: 1.05}
+  elastic_impedance_angles: [12, 24, 36]
+  stress_brittleness_weights:
+    brittleness: 0.45
+    oil_saturation: 0.25
+    stress_anisotropy: 0.20
+    differential_stress: 0.10
+
+seismic:
+  angles: [12, 24, 36]
+  wavelet_frequencies_hz: [30, 25, 20]
+  dt_s: 0.001
+  reflectivity_method: shuey
+  convolution_mode: same
+  chunk_size_inline: 64
+  noise:
+    enabled: true
+    gaussian_std_fraction: 0.05
+    seed: 20260505
+
+horizon:
+  source: facies
+  probability_sigma_samples: 2.0
+  gradient_property: AI
+
+uncertainty:
+  n_samples: 8
+  enabled: false
+  perturbations:
+    mineral_modulus_rel_std: 0.03
+    fluid_modulus_rel_std: 0.05
+    wavelet_frequency_rel_std: 0.05
+    noise_std_fraction_range: [0.02, 0.10]
+    stress_correction_rel_std: 0.15
+
+export:
+  save_npz: true
+  save_torch: true
+  save_vtk: false
+  save_segy: false
+  figures_dpi: 300
+
+ablation:
+  enabled: true
+  max_crossplot_points: 20000
