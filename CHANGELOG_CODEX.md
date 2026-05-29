@@ -2,6 +2,7 @@
 
 ## 2026-05-05
 
+- Expanded `research_pipelines/stress_conditioned_softdata_outputs/grid_peff/最后一版处理流程变量与可视化总结.md` with reproducibility notes for `/tmp`, `apply_patch`, data-disk temporary directories, and recommended real/demo run commands.
 - Added `research_pipelines/stress_conditioned_softdata_outputs/grid_peff/最后一版处理流程变量与可视化总结.md`, a final Chinese Markdown report covering the latest workflow, generated-variable naming/provenance, distribution statistics, downstream use, and visualization inventory.
 - Fixed orthoslice publication figures where row colorbars and tick-offset numbers could overlap the third slice panel; colorbars now use dedicated right-side axes with reserved margins and non-offset tick formatting.
 - Regenerated the affected `grid_peff/figures/nature_*` plates under `research_pipelines/stress_conditioned_softdata_outputs`.
